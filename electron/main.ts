@@ -5,6 +5,7 @@ import { DatabaseService } from './services/DatabaseService';
 import { FileWatcher } from './services/FileWatcher';
 import { TaskPredictor } from './services/TaskPredictor';
 import { FocusManager } from './services/FocusManager';
+import { AutomationEngine } from './services/AutomationEngine';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -13,6 +14,7 @@ let database: DatabaseService;
 let fileWatcher: FileWatcher;
 let taskPredictor: TaskPredictor;
 let focusManager: FocusManager;
+let automationEngine: AutomationEngine;
 
 // Production/dev URLs
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -136,6 +138,10 @@ function initializeServices() {
 
   // Initialize focus manager
   focusManager = new FocusManager(database);
+
+  // Initialize automation engine
+  automationEngine = new AutomationEngine(database);
+  automationEngine.start();
 }
 
 function setupIPC() {
@@ -183,6 +189,31 @@ function setupIPC() {
 
   ipcMain.handle('update-settings', async (_event, settings: any) => {
     return await database.updateSettings(settings);
+  });
+
+  // Automation
+  ipcMain.handle('generate-email-draft', async (_event, context: any) => {
+    return await automationEngine.generateEmailDraft(context);
+  });
+
+  ipcMain.handle('generate-meeting-summary', async (_event, meeting: any) => {
+    return await automationEngine.generateMeetingSummary(meeting);
+  });
+
+  ipcMain.handle('organize-screenshots', async (_event, directory: string) => {
+    return await automationEngine.organizeScreenshots(directory);
+  });
+
+  ipcMain.handle('cleanup-desktop', async (_event, desktopPath: string) => {
+    return await automationEngine.cleanupDesktop(desktopPath);
+  });
+
+  ipcMain.handle('get-automation-rules', async () => {
+    return automationEngine.getRules();
+  });
+
+  ipcMain.handle('toggle-automation-rule', async (_event, ruleId: number, enabled: boolean) => {
+    return automationEngine.toggleRule(ruleId, enabled);
   });
 }
 
@@ -237,6 +268,7 @@ app.on('before-quit', () => {
   // Cleanup services
   if (activityMonitor) activityMonitor.stop();
   if (fileWatcher) fileWatcher.stop();
+  if (automationEngine) automationEngine.stop();
 
   globalShortcut.unregisterAll();
 });
